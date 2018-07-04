@@ -40,6 +40,5 @@ public class InfRes2DMain extends ApplicationAdapter {
     @Override
     public void dispose() {
         stage.dispose();
-        ResourceManager.INPUT_EXEC_SERVICE.shutdown();
     }
 }

@@ -10,78 +10,56 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.Widget;
 import com.badlogic.gdx.utils.Disposable;
-import com.poltora.infres2d.ResourceManager;
+import com.poltora.infres2d.util.Vector2Byte;
 
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class DrawingActor extends Widget implements Disposable {
-    private List<Vector2> points;
-
     private ShapeRenderer renderer;
     private OrthographicCamera camera;
-    private Vector2 offset;
+    private Vector2Byte direction;
     private float cameraSpeed;
 
-    private Lock updateLock;
+    private List<Vector2> points;
+
 
     public DrawingActor() {
         points = new LinkedList<>();
         renderer = new ShapeRenderer();
         camera = new OrthographicCamera(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        offset = new Vector2();
-        updateLock = new ReentrantLock();
-        cameraSpeed = 3.0f;
+        direction = new Vector2Byte();
+        cameraSpeed = 300.0f;
 
         camera.position.set(0.0f, 0.0f, 0.0f);
         camera.update();
         renderer.getProjectionMatrix().set(camera.combined);
         renderer.updateMatrices();
 
-        ResourceManager.INPUT_EXEC_SERVICE.scheduleAtFixedRate(() -> {
-            try {
-                updateLock.lock();
-                camera.translate(offset);
-                camera.update();
-                renderer.getProjectionMatrix().set(camera.combined);
-                renderer.updateMatrices();
-            } finally {
-                updateLock.unlock();
-            }
-        }, 0, 10, TimeUnit.MILLISECONDS);
-
         addListener(new InputListener() {
             @Override
             public boolean keyDown(InputEvent event, int keycode) {
                 boolean handled;
 
-                try {
-                    updateLock.lock();
-                    switch (keycode) {
-                        case Input.Keys.W:
-                            offset.y += cameraSpeed;
-                            handled = true;
-                            break;
-                        case Input.Keys.S:
-                            offset.y -= cameraSpeed;
-                            handled = true;
-                            break;
-                        case Input.Keys.A:
-                            offset.x -= cameraSpeed;
-                            handled = true;
-                            break;
-                        case Input.Keys.D:
-                            offset.x += cameraSpeed;
-                            handled = true;
-                            break;
-                        default:
-                            handled = false;
-                    }
-                } finally {
-                    updateLock.unlock();
+                switch (keycode) {
+                    case Input.Keys.W:
+                        direction.y++;
+                        handled = true;
+                        break;
+                    case Input.Keys.S:
+                        direction.y--;
+                        handled = true;
+                        break;
+                    case Input.Keys.A:
+                        direction.x--;
+                        handled = true;
+                        break;
+                    case Input.Keys.D:
+                        direction.x++;
+                        handled = true;
+                        break;
+                    default:
+                        handled = false;
                 }
 
                 return handled;
@@ -91,30 +69,25 @@ public class DrawingActor extends Widget implements Disposable {
             public boolean keyUp(InputEvent event, int keycode) {
                 boolean handled;
 
-                try {
-                    updateLock.lock();
-                    switch (keycode) {
-                        case Input.Keys.W:
-                            offset.y -= cameraSpeed;
-                            handled = true;
-                            break;
-                        case Input.Keys.S:
-                            offset.y += cameraSpeed;
-                            handled = true;
-                            break;
-                        case Input.Keys.A:
-                            offset.x += cameraSpeed;
-                            handled = true;
-                            break;
-                        case Input.Keys.D:
-                            offset.x -= cameraSpeed;
-                            handled = true;
-                            break;
-                        default:
-                            handled = false;
-                    }
-                } finally {
-                    updateLock.unlock();
+                switch (keycode) {
+                    case Input.Keys.W:
+                        direction.y--;
+                        handled = true;
+                        break;
+                    case Input.Keys.S:
+                        direction.y++;
+                        handled = true;
+                        break;
+                    case Input.Keys.A:
+                        direction.x++;
+                        handled = true;
+                        break;
+                    case Input.Keys.D:
+                        direction.x--;
+                        handled = true;
+                        break;
+                    default:
+                        handled = false;
                 }
 
                 return handled;
@@ -122,49 +95,44 @@ public class DrawingActor extends Widget implements Disposable {
 
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                try {
-                    updateLock.lock();
-                    points.add(new Vector2(camera.position.x + x - camera.viewportWidth / 2.0f,
-                            camera.position.y + y - camera.viewportHeight / 2.0f));
-                } finally {
-                    updateLock.unlock();
-                }
+                points.add(new Vector2(camera.position.x + x - camera.viewportWidth / 2.0f,
+                        camera.position.y + y - camera.viewportHeight / 2.0f));
                 return false;
             }
         });
     }
 
     @Override
+    public void act(float delta) {
+        float speed;
+        if ((direction.x | direction.y) != 0) {
+            speed = (direction.x != 0 && direction.y != 0) ? cameraSpeed * delta * 0.707107f : cameraSpeed * delta;
+            camera.translate(direction.x * speed, direction.y * speed);
+            camera.update();
+            renderer.getProjectionMatrix().set(camera.combined);
+            renderer.updateMatrices();
+        }
+    }
+
+    @Override
     public void draw(Batch batch, float parentAlpha) {
         batch.end();
+        renderer.begin(ShapeRenderer.ShapeType.Point);
 
-        try {
-            updateLock.lock();
-            renderer.begin(ShapeRenderer.ShapeType.Point);
-
-            for (Vector2 point : points) {
-                renderer.point(point.x, point.y, 0.0f);
-            }
-
-            renderer.end();
-        } finally {
-            updateLock.unlock();
+        for (Vector2 point : points) {
+            renderer.point(point.x, point.y, 0.0f);
         }
 
+        renderer.end();
         batch.begin();
     }
 
     public void resize() {
-        try {
-            updateLock.lock();
-            camera.viewportWidth = getWidth();
-            camera.viewportHeight = getHeight();
-            camera.update();
-            renderer.getProjectionMatrix().set(camera.combined);
-            renderer.updateMatrices();
-        } finally {
-            updateLock.unlock();
-        }
+        camera.viewportWidth = getWidth();
+        camera.viewportHeight = getHeight();
+        camera.update();
+        renderer.getProjectionMatrix().set(camera.combined);
+        renderer.updateMatrices();
     }
 
     @Override
