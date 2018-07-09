@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.Widget;
 import com.badlogic.gdx.utils.Disposable;
+import com.poltora.infres2d.math.bezier.BezierCurve2D;
 import com.poltora.infres2d.util.Vector2Byte;
 
 import java.util.LinkedList;
@@ -21,15 +22,16 @@ public class DrawingActor extends Widget implements Disposable {
     private Vector2Byte direction;
     private float cameraSpeed;
 
-    private List<Vector2> points;
-
+    private BezierCurve2D curve;
 
     public DrawingActor() {
-        points = new LinkedList<>();
         renderer = new ShapeRenderer();
         camera = new OrthographicCamera(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         direction = new Vector2Byte();
         cameraSpeed = 300.0f;
+
+        curve = new BezierCurve2D(new Vector2(0.0f, 0.0f), new Vector2(0.0f, 300.0f), new Vector2(500.0f, 250.0f));
+        curve.calcDeCasteljauApprox(1.0f);
 
         camera.position.set(0.0f, 0.0f, 0.0f);
         camera.update();
@@ -95,8 +97,6 @@ public class DrawingActor extends Widget implements Disposable {
 
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                points.add(new Vector2(camera.position.x + x - camera.viewportWidth / 2.0f,
-                        camera.position.y + y - camera.viewportHeight / 2.0f));
                 return false;
             }
         });
@@ -117,13 +117,17 @@ public class DrawingActor extends Widget implements Disposable {
     @Override
     public void draw(Batch batch, float parentAlpha) {
         batch.end();
-        renderer.begin(ShapeRenderer.ShapeType.Point);
 
-        for (Vector2 point : points) {
-            renderer.point(point.x, point.y, 0.0f);
-        }
+        Gdx.gl30.glLineWidth(2.0f);
+
+        renderer.begin(ShapeRenderer.ShapeType.Line);
+
+        curve.draw(renderer);
 
         renderer.end();
+
+        Gdx.gl30.glLineWidth(1.0f);
+
         batch.begin();
     }
 
@@ -137,7 +141,6 @@ public class DrawingActor extends Widget implements Disposable {
 
     @Override
     public void dispose() {
-        points.clear();
         renderer.dispose();
     }
 }
